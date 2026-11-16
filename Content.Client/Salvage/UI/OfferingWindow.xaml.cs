@@ -65,6 +65,13 @@ public sealed partial class OfferingWindow : FancyWindow,
         ProgressionBar.ForegroundStyleBoxOverride = new StyleBoxFlat(Color.FromHex("#C74EBD"));
     }
 
+    public void SetStatusControl(Robust.Client.UserInterface.Control control)
+    {
+        StatusContainer.RemoveAllChildren();
+        StatusContainer.AddChild(control);
+        StatusContainer.Visible = true;
+    }
+
     public void AddOption(OfferingWindowOption option)
     {
         Container.AddChild(option);

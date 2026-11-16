@@ -29,6 +29,7 @@ public sealed partial class SalvageSystem
 
     private void InitializeExpeditions()
     {
+        SubscribeLocalEvent<SalvageExpeditionDataComponent, ComponentShutdown>(OnDiskPreparationShutdown);
         SubscribeLocalEvent<SalvageExpeditionConsoleComponent, ComponentInit>(OnSalvageConsoleInit);
         SubscribeLocalEvent<SalvageExpeditionConsoleComponent, EntParentChangedMessage>(OnSalvageConsoleParent);
         SubscribeLocalEvent<SalvageExpeditionConsoleComponent, ClaimSalvageMessage>(OnSalvageClaimMessage);
@@ -119,8 +120,11 @@ public sealed partial class SalvageSystem
         var query = EntityQueryEnumerator<SalvageExpeditionDataComponent>();
         while (query.MoveNext(out var uid, out var comp))
         {
-            // Update offers
-            if (comp.NextOffer > currentTime || comp.Claimed)
+            UpdateDiskPreparation(uid, comp);
+
+            // Keep the selected offer stable until its disk has been issued.
+            if (comp.NextOffer > currentTime || comp.Claimed ||
+                comp.DiskPreparation == SalvageDiskPreparation.Writing)
                 continue;
 
             comp.Cooldown = false;
@@ -136,21 +140,25 @@ public sealed partial class SalvageSystem
         component.NextOffer = _timing.CurTime + TimeSpan.FromSeconds(_cooldown);
         Announce(uid, Loc.GetString("salvage-expedition-completed"));
         component.ActiveMission = 0;
+        component.DiskPreparation = SalvageDiskPreparation.Idle;
         component.Cooldown = true;
         UpdateConsoles(expedition);
     }
 
     private void GenerateMissions(SalvageExpeditionDataComponent component)
     {
+        component.DiskPreparation = SalvageDiskPreparation.Idle;
         component.Missions.Clear();
 
-        for (var i = 0; i < MissionLimit; i++)
+        string[] difficulties = { "Easy", "Moderate", "Hard", "Extreme" };
+
+        foreach (var difficulty in difficulties)
         {
             var mission = new SalvageMissionParams
             {
                 Index = component.NextIndex,
                 Seed = _random.Next(),
-                Difficulty = "Moderate",
+                Difficulty = difficulty,
             };
 
             component.Missions[component.NextIndex++] = mission;
@@ -160,7 +168,12 @@ public sealed partial class SalvageSystem
     private SalvageExpeditionConsoleState GetState(SalvageExpeditionDataComponent component)
     {
         var missions = component.Missions.Values.ToList();
-        return new SalvageExpeditionConsoleState(component.NextOffer, component.Claimed, component.Cooldown, component.ActiveMission, missions);
+        return new SalvageExpeditionConsoleState(component.NextOffer, component.Claimed, component.Cooldown, component.ActiveMission, missions)
+        {
+            DiskPreparation = component.DiskPreparation,
+            DiskReadyAt = component.DiskReadyAt,
+            PreparingMission = component.PreparingMission?.Index ?? 0,
+        };
     }
 
     private void SpawnMission(SalvageMissionParams missionParams, EntityUid station, EntityUid? coordinatesDisk)

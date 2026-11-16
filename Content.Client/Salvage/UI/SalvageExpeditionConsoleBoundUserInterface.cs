@@ -19,6 +19,7 @@ public sealed class SalvageExpeditionConsoleBoundUserInterface : BoundUserInterf
 {
     [ViewVariables]
     private OfferingWindow? _window;
+    private SalvageDiskPreparationControl? _diskPreparation;
 
     [Dependency] private readonly IConfigurationManager _cfgManager = default!;
     [Dependency] private readonly IEntityManager _entManager = default!;
@@ -34,6 +35,8 @@ public sealed class SalvageExpeditionConsoleBoundUserInterface : BoundUserInterf
         base.Open();
         _window = this.CreateWindowCenteredLeft<OfferingWindow>();
         _window.Title = Loc.GetString("salvage-expedition-window-title");
+        _diskPreparation = new SalvageDiskPreparationControl();
+        _window.SetStatusControl(_diskPreparation);
     }
 
     protected override void UpdateState(BoundUserInterfaceState state)
@@ -43,6 +46,7 @@ public sealed class SalvageExpeditionConsoleBoundUserInterface : BoundUserInterf
         if (state is not SalvageExpeditionConsoleState current || _window == null)
             return;
 
+        _diskPreparation?.UpdateState(current);
         _window.Progression = null;
         _window.Cooldown = TimeSpan.FromSeconds(_cfgManager.GetCVar(CCVars.SalvageExpeditionCooldown));
         _window.NextOffer = current.NextOffer;
@@ -57,8 +61,9 @@ public sealed class SalvageExpeditionConsoleBoundUserInterface : BoundUserInterf
             var offering = new OfferingWindowOption();
             offering.Title = Loc.GetString($"salvage-expedition-type");
 
-            var difficultyId = "Moderate";
-            var difficultyProto = _protoManager.Index<SalvageDifficultyPrototype>(difficultyId);
+            var difficultyId = missionParams.Difficulty;
+            var difficultyProto =
+                _protoManager.Index<SalvageDifficultyPrototype>(difficultyId);
             // TODO: Selectable difficulty soon.
             var mission = salvage.GetMission(difficultyProto, missionParams.Seed);
 
@@ -73,7 +78,8 @@ public sealed class SalvageExpeditionConsoleBoundUserInterface : BoundUserInterf
 
             offering.AddContent(new Label
             {
-                Text = Loc.GetString("salvage-expedition-difficulty-Moderate"),
+                Text = Loc.GetString(
+                    $"salvage-expedition-difficulty-{difficultyId}"),
                 FontColorOverride = difficultyColor,
                 HorizontalAlignment = Control.HAlignment.Left,
                 Margin = new Thickness(0f, 0f, 0f, 5f),
@@ -101,11 +107,16 @@ public sealed class SalvageExpeditionConsoleBoundUserInterface : BoundUserInterf
 
             var faction = mission.Faction;
 
+            // CorvaxGoob Extreme threat - Unknown
             offering.AddContent(new Label
             {
-                Text = string.IsNullOrWhiteSpace(Loc.GetString(_protoManager.Index<SalvageFactionPrototype>(faction).Description))
+                Text = difficultyProto.ID == "Extreme"
+                    ? Loc.GetString("salvage-expedition-threat-unknown")
+                    : string.IsNullOrWhiteSpace(
+                        Loc.GetString(_protoManager.Index<SalvageFactionPrototype>(faction).Description))
                         ? LogAndReturnDefaultFactionDescription(faction)
                         : Loc.GetString(_protoManager.Index<SalvageFactionPrototype>(faction).Description),
+
                 HorizontalAlignment = Control.HAlignment.Left,
                 Margin = new Thickness(0f, 0f, 0f, 5f),
                 StyleClasses = { StyleClass.LabelKeyText },
@@ -181,7 +192,11 @@ public sealed class SalvageExpeditionConsoleBoundUserInterface : BoundUserInterf
             };
 
             offering.Claimed = current.ActiveMission == missionParams.Index;
-            offering.Disabled = current.Claimed || current.Cooldown;
+            offering.Disabled = current.Claimed || current.Cooldown ||
+                current.DiskPreparation == SalvageDiskPreparation.Writing;
+            if (current.DiskPreparation == SalvageDiskPreparation.Writing &&
+                current.PreparingMission == missionParams.Index)
+                offering.SetClaimText(Loc.GetString("salvage-disk-writing-button"));
 
             _window.AddOption(offering);
         }
