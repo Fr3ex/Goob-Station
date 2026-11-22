@@ -5,6 +5,7 @@ using System.Threading;
 using Content.Server.Salvage.Expeditions;
 using Content.Shared.CCVar;
 using Content.Shared.Examine;
+using Content.Shared.Procedural; // CorvaxGoob
 using Content.Shared.Salvage.Expeditions;
 using Content.Shared.Shuttles.Components;
 using Robust.Shared.CPUJob.JobQueues;
@@ -29,7 +30,7 @@ public sealed partial class SalvageSystem
 
     private void InitializeExpeditions()
     {
-        SubscribeLocalEvent<SalvageExpeditionDataComponent, ComponentShutdown>(OnDiskPreparationShutdown);
+        SubscribeLocalEvent<SalvageExpeditionDataComponent, ComponentShutdown>(OnDiskPreparationShutdown); // CorvaxGoob, Delete if the animations break.
         SubscribeLocalEvent<SalvageExpeditionConsoleComponent, ComponentInit>(OnSalvageConsoleInit);
         SubscribeLocalEvent<SalvageExpeditionConsoleComponent, EntParentChangedMessage>(OnSalvageConsoleParent);
         SubscribeLocalEvent<SalvageExpeditionConsoleComponent, ClaimSalvageMessage>(OnSalvageClaimMessage);
@@ -120,13 +121,16 @@ public sealed partial class SalvageSystem
         var query = EntityQueryEnumerator<SalvageExpeditionDataComponent>();
         while (query.MoveNext(out var uid, out var comp))
         {
+            // CorvaxGoob-Start, Delete if the animations break.
             UpdateDiskPreparation(uid, comp);
-
-            // Keep the selected offer stable until its disk has been issued.
             if (comp.NextOffer > currentTime || comp.Claimed ||
                 comp.DiskPreparation == SalvageDiskPreparation.Writing)
                 continue;
+            // CorvaxGoob-End
 
+            // // Update offers
+            // if (comp.NextOffer > currentTime || comp.Claimed)
+            //     continue;
             comp.Cooldown = false;
             comp.NextOffer += TimeSpan.FromSeconds(_cooldown);
             GenerateMissions(comp);
@@ -140,25 +144,25 @@ public sealed partial class SalvageSystem
         component.NextOffer = _timing.CurTime + TimeSpan.FromSeconds(_cooldown);
         Announce(uid, Loc.GetString("salvage-expedition-completed"));
         component.ActiveMission = 0;
-        component.DiskPreparation = SalvageDiskPreparation.Idle;
+        component.DiskPreparation = SalvageDiskPreparation.Idle; // CorvaxGoob, Delete if the animations break.
         component.Cooldown = true;
         UpdateConsoles(expedition);
     }
 
     private void GenerateMissions(SalvageExpeditionDataComponent component)
     {
-        component.DiskPreparation = SalvageDiskPreparation.Idle;
+        component.DiskPreparation = SalvageDiskPreparation.Idle; // CorvaxGoob, Delete if the animations break.
         component.Missions.Clear();
 
-        string[] difficulties = { "Easy", "Moderate", "Hard", "Extreme" };
+        var difficulties = _prototypeManager.EnumeratePrototypes<SalvageDifficultyPrototype>().OrderBy(x => x.LootBudget); // CorvaxGoob
 
-        foreach (var difficulty in difficulties)
+        foreach (var difficulty in difficulties) // CorvaxGoob
         {
             var mission = new SalvageMissionParams
             {
                 Index = component.NextIndex,
                 Seed = _random.Next(),
-                Difficulty = difficulty,
+                Difficulty = difficulty.ID, // CorvaxGoob
             };
 
             component.Missions[component.NextIndex++] = mission;
@@ -168,12 +172,16 @@ public sealed partial class SalvageSystem
     private SalvageExpeditionConsoleState GetState(SalvageExpeditionDataComponent component)
     {
         var missions = component.Missions.Values.ToList();
+        // CorvaxGoob-Start, Delete if the animations break.
         return new SalvageExpeditionConsoleState(component.NextOffer, component.Claimed, component.Cooldown, component.ActiveMission, missions)
         {
             DiskPreparation = component.DiskPreparation,
             DiskReadyAt = component.DiskReadyAt,
             PreparingMission = component.PreparingMission?.Index ?? 0,
         };
+        // CorvaxGoob-End
+
+        // return new SalvageExpeditionConsoleState(component.NextOffer, component.Claimed, component.Cooldown, component.ActiveMission, missions);
     }
 
     private void SpawnMission(SalvageMissionParams missionParams, EntityUid station, EntityUid? coordinatesDisk)
