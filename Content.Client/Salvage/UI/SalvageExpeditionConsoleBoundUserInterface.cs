@@ -19,7 +19,7 @@ public sealed class SalvageExpeditionConsoleBoundUserInterface : BoundUserInterf
 {
     [ViewVariables]
     private OfferingWindow? _window;
-
+    private SalvageDiskPreparationControl? _diskPreparation; // CorvaxGoob, Delete if the animations break.
     [Dependency] private readonly IConfigurationManager _cfgManager = default!;
     [Dependency] private readonly IEntityManager _entManager = default!;
     [Dependency] private readonly IPrototypeManager _protoManager = default!;
@@ -34,6 +34,8 @@ public sealed class SalvageExpeditionConsoleBoundUserInterface : BoundUserInterf
         base.Open();
         _window = this.CreateWindowCenteredLeft<OfferingWindow>();
         _window.Title = Loc.GetString("salvage-expedition-window-title");
+        _diskPreparation = new SalvageDiskPreparationControl(); // CorvaxGoob, Delete if the animations break.
+        _window.SetStatusControl(_diskPreparation); // CorvaxGoob, Delete if the animations break.
     }
 
     protected override void UpdateState(BoundUserInterfaceState state)
@@ -42,7 +44,8 @@ public sealed class SalvageExpeditionConsoleBoundUserInterface : BoundUserInterf
 
         if (state is not SalvageExpeditionConsoleState current || _window == null)
             return;
-
+        
+        _diskPreparation?.UpdateState(current); // CorvaxGoob, Delete if the animations break.
         _window.Progression = null;
         _window.Cooldown = TimeSpan.FromSeconds(_cfgManager.GetCVar(CCVars.SalvageExpeditionCooldown));
         _window.NextOffer = current.NextOffer;
@@ -186,8 +189,13 @@ public sealed class SalvageExpeditionConsoleBoundUserInterface : BoundUserInterf
             };
 
             offering.Claimed = current.ActiveMission == missionParams.Index;
-            offering.Disabled = current.Claimed || current.Cooldown;
-
+            // CorvaxGoob-Start, Delete if the animations break.
+            offering.Disabled = current.Claimed || current.Cooldown ||
+                current.DiskPreparation == SalvageDiskPreparation.Writing;
+            if (current.DiskPreparation == SalvageDiskPreparation.Writing &&
+                current.PreparingMission == missionParams.Index)
+                offering.SetClaimText(Loc.GetString("salvage-disk-writing-button"));
+            // CorvaxGoob-End
             _window.AddOption(offering);
         }
     }

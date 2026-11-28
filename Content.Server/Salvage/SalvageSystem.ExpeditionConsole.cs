@@ -16,23 +16,70 @@ public sealed partial class SalvageSystem
     {
         var station = _station.GetOwningStation(uid);
 
-        if (!TryComp<SalvageExpeditionDataComponent>(station, out var data) || data.Claimed)
+        if (!TryComp<SalvageExpeditionDataComponent>(station, out var data) || data.Claimed || data.Cooldown ||
+            data.DiskPreparation == SalvageDiskPreparation.Writing)
+        {
+            UpdateConsole((uid, component));
             return;
+        }
 
         if (!data.Missions.TryGetValue(args.Index, out var missionparams))
+        {
+            UpdateConsole((uid, component));
+            return;
+        }
+
+        data.PreparingMission = missionparams;
+        data.PrintingConsole = uid;
+        data.DiskPreparation = SalvageDiskPreparation.Writing;
+        data.DiskReadyAt = _timing.CurTime + SalvageExpeditionConsoleState.DiskPreparationDuration;
+        data.ScanStream = _audio.Stop(data.ScanStream);
+        data.ScanStream = _audio.PlayPvs(component.ScanSound, uid,
+            component.ScanSound.Params.WithLoop(false).WithVolume(0f))?.Entity;
+        UpdateConsoles((station.Value, data));
+    }
+
+    private void UpdateDiskPreparation(EntityUid station, SalvageExpeditionDataComponent data)
+    {
+        if (data.DiskPreparation != SalvageDiskPreparation.Writing)
             return;
 
-        var cdUid = Spawn(CoordinatesDisk, Transform(uid).Coordinates);
-        SpawnMission(missionparams, station.Value, cdUid);
+        // Closing the UI is harmless; losing the issuing console cancels the reservation.
+        if (data.PrintingConsole is not { } uid || Deleted(uid) ||
+            !TryComp<SalvageExpeditionConsoleComponent>(uid, out var component) ||
+            _station.GetOwningStation(uid) != station || data.PreparingMission is not { } missionparams)
+        {
+            data.ScanStream = _audio.Stop(data.ScanStream);
+            data.DiskPreparation = SalvageDiskPreparation.Cancelled;
+            data.PreparingMission = null;
+            data.PrintingConsole = null;
+            UpdateConsoles((station, data));
+            return;
+        }
 
-        data.ActiveMission = args.Index;
+        if (_timing.CurTime < data.DiskReadyAt)
+            return;
+
+        data.ScanStream = _audio.Stop(data.ScanStream);
+        var cdUid = Spawn(CoordinatesDisk, Transform(uid).Coordinates);
+        SpawnMission(missionparams, station, cdUid);
+
+        data.ActiveMission = missionparams.Index;
         var mission = GetMission(_prototypeManager.Index<SalvageDifficultyPrototype>(missionparams.Difficulty), missionparams.Seed);
         data.NextOffer = _timing.CurTime + mission.Duration + TimeSpan.FromSeconds(1);
 
         _labelSystem.Label(cdUid, GetFTLName(_prototypeManager.Index(PlanetNames), missionparams.Seed));
         _audio.PlayPvs(component.PrintSound, uid);
 
-        UpdateConsoles((station.Value, data));
+        data.DiskPreparation = SalvageDiskPreparation.Ready;
+        data.PreparingMission = null;
+        data.PrintingConsole = null;
+        UpdateConsoles((station, data));
+    }
+
+    private void OnDiskPreparationShutdown(Entity<SalvageExpeditionDataComponent> station, ref ComponentShutdown args)
+    {
+        station.Comp.ScanStream = _audio.Stop(station.Comp.ScanStream);
     }
 
     private void OnSalvageConsoleInit(Entity<SalvageExpeditionConsoleComponent> console, ref ComponentInit args)

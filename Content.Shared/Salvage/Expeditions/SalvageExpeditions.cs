@@ -9,8 +9,21 @@ using Robust.Shared.Serialization.TypeSerializers.Implementations.Custom;
 namespace Content.Shared.Salvage.Expeditions;
 
 [Serializable, NetSerializable]
+public enum SalvageDiskPreparation : byte
+{
+    Idle,
+    Writing,
+    Ready,
+    Cancelled,
+}
+
+[Serializable, NetSerializable]
 public sealed class SalvageExpeditionConsoleState : BoundUserInterfaceState
 {
+    public static readonly TimeSpan DiskPreparationDuration = TimeSpan.FromSeconds(7);
+    public SalvageDiskPreparation DiskPreparation;
+    public TimeSpan DiskReadyAt;
+    public ushort PreparingMission;
     public TimeSpan NextOffer;
     public bool Claimed;
     public bool Cooldown;
@@ -34,7 +47,13 @@ public sealed class SalvageExpeditionConsoleState : BoundUserInterfaceState
 public sealed partial class SalvageExpeditionConsoleComponent : Component
 {
     /// <summary>
-    /// The sound made when spawning a coordinates disk
+    /// Seven-second scanner sequence played while preparing a disk.
+    /// </summary>
+    [DataField]
+    public SoundSpecifier ScanSound = new SoundPathSpecifier("/Audio/Salvage/Expedition/planet_search.ogg");
+
+    /// <summary>
+    /// The sound made when spawning a coordinates disk.
     /// </summary>
     [DataField]
     public SoundSpecifier PrintSound = new SoundPathSpecifier("/Audio/Machines/terminal_insert_disc.ogg");
@@ -75,6 +94,13 @@ public sealed partial class SalvageExpeditionDataComponent : Component
     public readonly Dictionary<ushort, SalvageMissionParams> Missions = new();
 
     [ViewVariables] public ushort ActiveMission;
+
+    // Station-wide reservation prevents two consoles from printing the same offer.
+    [ViewVariables] public SalvageDiskPreparation DiskPreparation;
+    [ViewVariables] public SalvageMissionParams? PreparingMission;
+    [ViewVariables] public EntityUid? PrintingConsole;
+    [ViewVariables] public EntityUid? ScanStream;
+    [ViewVariables, AutoPausedField] public TimeSpan DiskReadyAt;
 
     public ushort NextIndex = 1;
 }

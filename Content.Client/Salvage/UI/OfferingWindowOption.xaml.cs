@@ -44,6 +44,11 @@ public sealed partial class OfferingWindowOption : PanelContainer
         ContentBox.AddChild(control);
     }
 
+    public void SetClaimText(string text)
+    {
+        ClaimButton.Text = text;
+    }
+
     public bool Disabled
     {
         get => ClaimButton.Disabled;
