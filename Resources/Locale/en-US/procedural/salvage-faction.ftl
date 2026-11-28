@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-salvage-faction-xenos = Xenos
+salvage-faction-xenosHard = Big hive
+salvage-faction-xenosEasy = Small hive
 salvage-faction-carps = Carps
 salvage-expedition-threat-unknown = Unknown

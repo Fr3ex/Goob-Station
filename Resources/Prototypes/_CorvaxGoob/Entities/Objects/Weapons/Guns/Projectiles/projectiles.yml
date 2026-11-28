@@ -16,3 +16,41 @@
       path: /Audio/Weapons/Guns/Hits/snap.ogg
     forceSound: true
   - type: StaminaDamageModifierOnCollide
+
+- type: entity
+  id: BulletAcidDungeon
+  name: acid spit
+  parent: BulletAcid
+  categories: [ HideSpawnMenu ]
+  components:
+  - type: Projectile
+    damage:
+      types:
+        Caustic: 10
+
+- type: entity
+  parent: BaseBullet
+  id: BulletSnowballSalvage
+  name: Snowbal
+  description: cold snowball.
+  abstract: true
+  components:
+  - type: Sprite
+    noRot: false
+    sprite: Objects/Consumable/Food/meat.rsi
+    layers:
+    - state: meatball #нет спрайта снежка
+      shader: unshaded
+  - type: Projectile
+    damage:
+      types:
+        Cold: 15
+  - type: StaminaDamageOnCollide
+    damage: 40
+  - type: TimedDespawn
+    lifetime: 5.0
+  - type: FlyBySound
+    sound:
+      path: /Audio/Weapons/bolathrow.ogg # а тут похуй мб
+  - type: ChangeTemperatureOnCollide
+    heat: -170000
